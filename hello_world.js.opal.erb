@@ -102,7 +102,7 @@ class Board
         ii, jj = *pos
         @scene.remove_child(@board[jj][ii])
       end
-      after 1.0 do
+      after 0.5 do
         connected.each do |pos|
           ii, jj = *pos
           type = if connected.size >= 5 && rand(100) < 40 

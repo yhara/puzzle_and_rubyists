@@ -6863,7 +6863,7 @@ if (k == null) k = nil;
             (($b = (($g = self.board)['$[]'] || $mm('[]')).call($g, jj))['$[]='] || $mm('[]=')).call($b, ii, jewel);
             return (($h = self.scene).$add_child || $mm('add_child')).call($h, jewel);
           }, TMP_9._s = self, TMP_9), $a).call($b)
-        }, TMP_8._s = this, TMP_8), $d).call($f, 1.0);
+        }, TMP_8._s = this, TMP_8), $d).call($f, 0.5);
         } else {
         return nil
       };
