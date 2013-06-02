@@ -1,0 +1,214 @@
+# vim: set ft=ruby:
+require 'opal'
+
+`enchant()`
+
+class Class
+  # Patch
+  def new(args)
+    `
+      TMP_4 = Class.prototype.$new;
+
+      var block;
+      block = TMP_4._p || nil, TMP_4._p = null;
+      args = __slice.call(arguments, 0);
+      
+      //var obj = new this;
+      var obj = window.Object.create(this.prototype);
+      this.apply(obj, args);
+
+      obj._id = Opal.uid();
+
+      obj.$initialize._p = block;
+      obj.$initialize.apply(obj, args);
+      return obj;
+    ` 
+  end
+end
+
+# from https://github.com/opal/opal/issues/144
+module Kernel
+#  def every interval, &block
+#    callback = `function(){ #{block.call}; }`
+#    `setInterval(callback, #{interval * 1000})`
+#  end
+#
+  def after(delay, &block)
+    callback = `function(){ #{block.call}; }`
+    `setTimeout(callback, #{delay * 1000})`
+  end
+end
+
+class Scene < `Scene`
+  alias_native :add_child, :addChild
+  alias_native :remove_child, :removeChild
+  #attr_accessor :backgroundColor
+  def backgroundColor=(v); @backgroundColor=v; end
+end
+
+class Sprite < `Sprite`
+  alias_native :scale, :scale
+  attr_accessor :image, :x, :y, :frame, :age
+  attr_accessor :image_name
+
+  def add_event_listener(event_name, &block)
+    %x{ this.addEventListener(event_name, block) }
+  end
+end
+
+class Game < `Game`
+  attr_accessor :fps, :onload
+  def root_scene; @rootScene; end
+  alias_native :preload, :preload
+  alias_native :start, :start
+
+  def assets
+    Hash.from_native(`this.assets`)
+  end
+end
+
+def onload(&block)
+  %x{ window.onload = block }
+end
+
+class Board
+  W = 6
+  H = 5
+  SIZE = 43
+
+  def initialize(jewel_imgs, twicon_imgs)
+    @jewel_imgs, @twicon_imgs = jewel_imgs, twicon_imgs
+    @board = nil
+    @game = @scene = nil
+  end
+
+  def init(game, scene)
+    @game, @scene = game, scene
+    @board = (0...H).map{|j|
+      (0...W).map{|i|
+        create_jewel(i, j).tap{|jewel|
+          scene.add_child(jewel)
+        }
+      }
+    }
+  end
+
+  private
+  
+  def on_jewel_clicked(i, j)
+    connected = connected_jewels(i, j)
+    if connected.size >= 3
+      connected.each do |pos|
+        ii, jj = *pos
+        @scene.remove_child(@board[jj][ii])
+      end
+      after 1.0 do
+        connected.each do |pos|
+          ii, jj = *pos
+          type = if connected.size >= 5 && rand(100) < 40 
+                   :twicon 
+                 else
+                   :jewel
+                 end
+          jewel = create_jewel(ii, jj, type)
+          @board[jj][ii] = jewel
+          @scene.add_child(jewel)
+        end
+      end
+    end
+  end
+
+  def create_jewel(i, j, type=:jewel)
+    jewel = Sprite.new(SIZE, SIZE)
+    image_name = case type
+                 when :jewel  then @jewel_imgs.shuffle.first
+                 when :twicon then @twicon_imgs.shuffle.first
+                 else raise
+                 end
+    jewel.image_name = image_name
+    jewel.image = @game.assets[image_name]
+    jewel.x = i*SIZE + 33
+    jewel.y = j*SIZE + 100
+    jewel.add_event_listener("touchend") do
+      on_jewel_clicked(*find_pos(jewel))
+    end
+    jewel
+  end
+
+  NEIGHBORS = [[+1, 0], [0, +1], [-1, 0], [0, -1]]
+  def connected_jewels(i, j)
+    raise "[bug] connected_jewels: out of map (#{i}, #{j})" unless (0...W)===i && (0...H)===j
+    start_image_name = @board[j][i].image_name
+    visited = Array.new(H){ Array.new(W){ false }}
+    ret = [[i, j]]
+    q = [[i, j]]
+    until q.empty?
+      i, j = *q.pop
+      visited[j][i] = true
+      NEIGHBORS.each do |dij|
+        di, dj = *dij
+        ni, nj = i+di, j+dj
+        next unless (0...W)===ni && (0...H)===nj
+        next if visited[nj][ni]
+        if @board[nj][ni].image_name == start_image_name
+          ret.push([ni, nj])
+          q.push([ni, nj])
+        end
+      end
+    end
+    ret
+  end
+
+  def find_pos(jewel)
+    ret = nil
+    H.times{|j|
+      W.times{|i|
+        ret = [i, j] if @board[j][i].equal?(jewel)
+      }
+    }
+    raise "[bug] find_pos: jewel not found" if ret.nil?
+    ret
+  end
+end
+
+# Hash from image name to image path
+image_paths = {
+  <% names = %w(chara1.png jewel1b-5.png jewel1g-5.png jewel1l-5.png jewel1p-5.png)
+     names.concat(Dir["images/twicons/*"].map{|path|
+       path[/twicons.*/]
+     })
+     names.each do |name| %>
+    "<%= name %>" => "<%= 'images/'+name %>",
+  <% end %>
+}
+jewel_imgs = image_paths.values.grep(/\/jewel.*/)
+twicon_imgs = image_paths.values.grep(/\/twicons.*/)
+
+board = Board.new(jewel_imgs, twicon_imgs)
+
+onload do
+  game = Game.new(320, 320)
+  `window.game = game`
+  game.fps = 15;
+  game.preload(*image_paths.values);
+  scene = game.root_scene
+  game.onload = proc do
+    scene.backgroundColor = "black"
+
+    bear = Sprite.new(32, 32)
+    bear.image = game.assets[image_paths["chara1.png"]]
+    bear.scale(1.5)
+    bear.x = 0
+    bear.y = 40
+    bear.frame = 5
+    scene.add_child(bear)
+
+    bear.add_event_listener("enterframe") do
+      bear.x = (bear.x + 1) % 320
+      bear.frame = bear.age % 2 + 6;
+    end
+
+    board.init(game, scene)
+  end
+  game.start()
+end

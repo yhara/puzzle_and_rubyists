@@ -1,0 +1,18 @@
+puzzle_and_rubyists
+===================
+
+A demo of Opal with enchant.js. 
+
+License
+=======
+
+MIT
+
+Contact
+=======
+
+https://github.com/yhara/puzzle_and_rubyists
+
+Yutaka HARA (yhara)
+
+twitter: @yhara_en
