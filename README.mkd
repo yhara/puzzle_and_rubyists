@@ -1,7 +1,7 @@
 puzzle_and_rubyists
 ===================
 
-A demo of Opal with enchant.js. 
+A demo of [Opal](http://opalrb.org/) with [enchant.js](http://enchantjs.com/). 
 
 License
 =======
